@@ -1,112 +1,115 @@
-module.exports = function(threshold){
+module.exports = function(options){
+	options = options || {};
+	var resolution = options.resolution || 10;
+	var cleanInterval = options.cleanInterval || 5000;
 	
-	threshold = threshold || 0.1
-
-	var timeouts={},intervals={},tempo=0,masterIndex,next=0,now=Date.now(),index=0;
-
-
-	function master(){
-		chrono();
-		run()
-		
-	}
-
-	function one(){
-		run();
-	}
-
-	function run(){
-		
-		for (var i in timeouts)
-			var timeout = timeouts[i];
-			if (timeout.next < now) {
-				timeout.f.call(timeout.context);
-				timeouts[i]=undefined;
+	var intervals=[],masters={},hasCleared=0;
+	function tick(){
+		var intervals = this;
+		for (var i=0;i<intervals.length;i++){
+			var v = intervals[i]
+			if (!v) {
+				//do nothing
+			} else if (v.skip){
+				v.skip=false
+			} else {
+				
+				v.f.apply(v.context,v.args)		
+				if (v.limit){
+					if (v.count>v.limit)
+						clearLooseInterval(v)	
+					else
+						v.count++
+				} 
 			}
 		}
-		for (var i in intervals)
-			var interval = intervals[i];
-			if (interval.next < now) {
-				interval.f.call(interval.context);
-				interval.next+=snap(interval.t);
-			}
-		}
-	}
-
-	function chrono(){
-		now = previous + tempo;
-		next = now + tempo;
-		previous = now;
-	}
-
-	function gcd(a,b) {
-	    if (b > a) {var temp = a; a = b; b = temp;}
-	    while (true) {
-	        if (b == 0) return a;
-	        a %= b;
-	        if (a == 0) return b;
-	        b %= a;
-	    }
+		
 	}
 
 	function snap(n){
-		return tempo * Math.max(1,Math.round(n/tempo));
-	}
-	function setTempo(t,timeout){
-		if (tempo==0) return pushTempo(t)
-		if (tempo==t) return tempo;
-
-		var snapped = snap(t);
-		if ((snappped > t ? snapped/t:t/snapped) < threshold) return tempo;
-
-		
-		
-		var denom = Math.round(gcd(Math.round(t*threshold),Math.round(tempo*threshold))/threshold);
-
-		return denom==tempo ? tempo:pushTempo(denom);
-		
-		
+		return resolution * Math.round(n/resolution);
 	}
 
-	function pushTempo(t){
-		clearInterval(masterIndex);
-		var rightNow = Date.now();
-		var diff = next-now;
-		if (diff > 0 && diff < t/2){
-			now=next;
-			setTimeout(one,diff)
+	function setLooseInterval(f,t,limit,context,args){
+		t = snap(t);
+		var now = Date.now();
+		if (typeof f !=='function') {
+			
+			throw new Error('must be func')
 		}
-		next=rightNow+t;
-		previous = rightNow;
-		var masterIndex = setInterval(master,t);
-		return tempo=t;
+
+		var master = masters[t]
+		if (!master) {
+			master = masters[t] = {intervals:[],t:t,count:1};
+			master.intervalHandle = setInterval(tick.bind(master.intervals),t);
+		} else {
+			master.count++;
+		}
+		var v;
+		master.intervals.push(v = {index:intervals.length, masterIndex: master.intervals.length, master: master, f: f, context: context || {}, args: args || [], limit: limit || 0, count: limit ? 0 : undefined, skip: (now - master.last) < t * 0.125 })
+		intervals.push(v);
+		
+		return v;
 	}
 
 	function setLooseTimeout(f,t,context,args){
-		setTempo(t,true)
-		var p = {f:f,t:t,next:Date.now()+t,context:context || this,args:args || []}
-		return timeouts[index++]=p	
+		return setLooseInterval(f,t,1,context,args)
 	}
 
-	function setLooseInterval(f,t,context,args){
-		setTempo(t)
-		var p = {f:f,t:t,next:Date.now()+t,context:context || this,args:args || []}
-		return intervals[index++]=p	
+	function clearLooseInterval(v){
+		if (!v || v.cleared)
+			return;
+		var i = v.index;
+		intervals[i]=undefined;
+		v.master.intervals[v.masterIndex]=undefined;
+		v.master.count--;
+		if (v.master.count<1) {
+			masters[v.master.t]=undefined;
+			clearInterval(v.master.intervalHandle)
+		}
+		hasCleared++;
+		v.cleared=true;
 	}
 
-	function clearLooseTimeout(i){
-		delete timeouts[i];
-	}
+	setInterval(function(){
 
-	function clearLooseInterval(i){
-		delete intervals[i];	
-	}
+		if (hasCleared==0 || hasCleared/intervals.length < 0.5) {
+			
+			return;
+		}
+		//clean up empty entries in intervals
+		//we do this every 
+		var intervals2 = [],masters2={}
+		
+		for (var i in masters){
+			var v = masters[i];
+			if (v) {
+				masters2[i]=v;
+				var masterIntervals=v.intervals, masterIntervals2=[];
+				for (var j=0;j<masterIntervals.length;j++){
+					var v2 = masterIntervals[j];
+					if (v2){
+						v2.masterIndex = masterIntervals2.length;
+						v2.index = intervals2.length;
+						masterIntervals2.push(v2)
+						intervals2.push(v2)
+					}
+				}
+			}
+		}
+	
+		
+		
+		intervals=intervals2;
+		masters = masters2;
+		
+		hasCleared=0;
+	},cleanInterval)
 
 	return {
-
 		setLooseTimeout:setLooseTimeout,
 		setLooseInterval:setLooseInterval,
-		clearLooseTimeout:clearLooseTimeout,
-		clearLooseInterval:clearLooseInterval
+		clearLooseInterval:clearLooseInterval,
+		clearLooseTimeout:clearLooseInterval,
 	}
 }
