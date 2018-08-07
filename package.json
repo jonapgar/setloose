@@ -1,0 +1,29 @@
+{
+  "name": "setloose",
+  "version": "2.0.0",
+  "description": "performance optimized replacement for Javascript's setTimeout and setInterval",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "node test/test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jonapgar/setloose.git"
+  },
+  "keywords": [
+    "setTimeout",
+    "setInterval"
+  ],
+  "author": "jonapgar",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jonapgar/setloose/issues"
+  },
+  "homepage": "https://github.com/jonapgar/setloose#readme",
+  "devDependencies": {
+    "debug": "^3.0.1"
+  }
+}
