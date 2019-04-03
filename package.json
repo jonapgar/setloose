@@ -20,5 +20,8 @@
     "url": "https://github.com/jonapgar/setloose/issues"
   },
   "homepage": "https://github.com/jonapgar/setloose#readme",
-  "devDependencies": {}
+  "devDependencies": {},
+  "dependencies": {
+    "nowish": "^1.0.0"
+  }
 }

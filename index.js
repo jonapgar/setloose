@@ -1,6 +1,6 @@
 function go({resolution=10,cleanInterval=5000,splitResolution=500,minSplits=4}={}) {
 	
-	let nowish = require('./nowish')()	
+	let nowish = require('nowish')()	
 
 	
 	let masters={}
