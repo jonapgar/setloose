@@ -3,11 +3,8 @@
   "version": "2.0.1",
   "description": "performance optimized replacement for Javascript's setTimeout and setInterval",
   "main": "index.js",
-  "directories": {
-    "test": "test"
-  },
   "scripts": {
-    "test": "node test/test"
+    "test": "echo 'No tests yet'"
   },
   "repository": {
     "type": "git",
@@ -23,7 +20,5 @@
     "url": "https://github.com/jonapgar/setloose/issues"
   },
   "homepage": "https://github.com/jonapgar/setloose#readme",
-  "devDependencies": {
-    "debug": "^3.0.1"
-  }
+  "devDependencies": {}
 }

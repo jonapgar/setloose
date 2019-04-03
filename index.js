@@ -1,27 +1,27 @@
-
-module.exports = options => {
-	options = options || {}
-	const resolution = options.resolution || 10
-	const cleanInterval = options.cleanInterval || 5000
-	const splitResolution = options.splitResolution || 500
-	const minSplits = options.minSplits || 4
+function go({resolution=10,cleanInterval=5000,splitResolution=500,minSplits=4}={}) {
+	
+	let nowish = require('./nowish')()	
 
 	
 	let masters={}
 	let hasCleared=0
 	let hasAdded=0
 	const tick = intervals=>{
-		let now = Date.now()
+		let now = nowish()
+		let errors = []
 		for (let i=0;i<intervals.length;i++){
 			const v = intervals[i]
 			if (!v) {
 				//do nothing
 			} else {
-				let start = v.start
-				if (start > now) {
+				
+				if (v.start > now) {
 					continue
 				}
-				delete v.start
+				v.start=0
+				if (--v.wait > 0) {
+					continue
+				}
 				if (v.cleared) {
 					
 					throw new Error('a cleared timeout should not be here')
@@ -34,8 +34,18 @@ module.exports = options => {
 					else
 						v.count++
 				}
-				v.f(v.options)		
+				try {
+					v.f(...v.options)
+				} catch (e) {
+					errors.push(e)
+				}
+				v.wait = v.splits		
 			}
+		}
+		if (errors.length) {
+			let e = new Error('LooseTimeoutErrors have occurred')
+			e.errors = errors
+			throw e
 		}
 		
 	}
@@ -43,16 +53,18 @@ module.exports = options => {
 	const snap = n=>resolution * Math.round(n/resolution)
 
 
-	const  setLooseInterval = (f,t,limit,options)=>{
+	const  setLooseInterval = (f,t,limit,...options)=>{
+
 		t = snap(t)
-		const now = Date.now()
+
+		const now = nowish()
 		if (typeof f !=='function') {
 			
 			throw new Error('must be func')
 		}
 		const splits =Math.max(minSplits,Math.ceil(t/splitResolution))
 		const splitTime = Math.round(t/splits)
-		const key = `${splitTime}`
+		const key = splitTime
 		let master = masters[key]
 		if (!master) {
 			master = masters[key] = {intervals:[],t,count:1,key,f:tick}
@@ -63,7 +75,7 @@ module.exports = options => {
 		
 		
 		let v
-		master.intervals.push(v = {start:now+t,index: master.intervals.length, master, f, options, limit: limit || 0, count: limit ? 0 : undefined})
+		master.intervals.push(v = {wait:0,splits,loose:true,start:now+t,index: master.intervals.length, master, f, options, limit: limit || 0, count: limit ? 0 : undefined})
 		
 		  
 		hasAdded++
@@ -71,8 +83,8 @@ module.exports = options => {
 		return v
 	}
 
-	const setLooseTimeout  = (f,t,options)=>{
-		return setLooseInterval(f,t,1,options)
+	const setLooseTimeout  = (f,t,...options)=>{
+		return setLooseInterval(f,t,1,...options)
 	}
 
 	const clearLooseInterval = v=>{
@@ -133,18 +145,28 @@ module.exports = options => {
 	}
 }
 
-if (!module.parent) {
-	let setLooseTimeout = module.exports({
-		resolution:100,
-		splitResolution:500,
-		minSplits:10,
-	}).setLooseTimeout
-	setInterval(function(){
-		let now = Date.now()
-		setLooseTimeout(opts=>{
-			let delta = Date.now() -now
-			console.log('delta: %dms\t\t%o',delta,opts)
-		},1000)	
-	},100)
+let filled
+go.fill = options=>{
+	if (filled)
+		return
+	filled=true
+	let funcs = go(options)
+	for (let key in funcs) {
+		global[key] = funcs[key]
+	}
+	let oldClearTimeout = clearTimeout
+	let oldClearInterval = clearInterval
 	
+	//can clear either
+	global.clearTimeout = (t,...args)=>{
+		if (t && t.loose)
+			return clearLooseTimeout(t,...args)
+		return oldClearTimeout(t,...args)
+	}
+	global.clearInterval = (t,...args)=>{
+		if (t && t.loose)
+			return clearLooseInterval(t,...args)
+		return oldClearInterval(t,...args)
+	}
 }
+module.exports = go
